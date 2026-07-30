@@ -370,11 +370,10 @@ def background_worker():
 # ══════════════════════════════════════════════════════════════
 #  ENTRY
 # ══════════════════════════════════════════════════════════════
+worker_thread = threading.Thread(target=background_worker, daemon=True)
+worker_thread.start()
+
 if __name__ == "__main__":
-    # Start the OTP collector in a daemon thread
-    worker_thread = threading.Thread(target=background_worker, daemon=True)
-    worker_thread.start()
-    
-    # Run Flask App
+    # Run Flask App locally
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
