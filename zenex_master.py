@@ -82,24 +82,36 @@ def index():
 @app.route("/api/otps", methods=["GET"])
 @require_api_key
 def get_otps():
-    limit = request.args.get("limit", default=50, type=int)
-    platform = request.args.get("platform", default="all")
+    limit_str = request.args.get("list") or request.args.get("limit")
+    try:
+        limit = int(limit_str) if limit_str else 5
+    except ValueError:
+        limit = 5
+
+    platform = request.args.get("platform", default="all").lower()
     
     fb_data = []
     if platform in ("all", "fb") and FB_OTP_FILE.exists():
         lines = FB_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
         for ln in lines[-limit:]:
-            if "|" in ln:
-                num, code = ln.split("|", 1)
-                fb_data.append({"number": num, "otp": code})
+            parts = ln.split("|")
+            if len(parts) >= 3:
+                fb_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
+            elif len(parts) == 2:
+                fb_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
                 
     insta_data = []
     if platform in ("all", "insta") and INSTA_OTP_FILE.exists():
         lines = INSTA_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
         for ln in lines[-limit:]:
-            if "|" in ln:
-                num, code = ln.split("|", 1)
-                insta_data.append({"number": num, "otp": code})
+            parts = ln.split("|")
+            if len(parts) >= 3:
+                insta_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
+            elif len(parts) == 2:
+                insta_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
+
+    fb_data.reverse()
+    insta_data.reverse()
 
     with _lock:
         total = _total_saved
@@ -199,8 +211,10 @@ def load_existing() -> None:
             for ln in src_file.read_text(encoding="utf-8", errors="replace").splitlines():
                 ln = ln.strip()
                 if ln and "|" in ln:
-                    _seen_pairs.add(ln)
-                    total += 1
+                    parts = ln.split("|")
+                    if len(parts) >= 2:
+                        _seen_pairs.add(f"{parts[0]}|{parts[1]}")
+                        total += 1
     _total_saved = total
     log(f"[INIT] Loaded {total} pairs from existing files")
 
@@ -295,12 +309,14 @@ def save_otp_pairs(record: dict) -> None:
 
         clean_otp = extract_otp_code(raw_otp)
         platform  = classify_platform(number, raw_otp)
-        entry     = f"{number}|{clean_otp}"
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry_key = f"{number}|{clean_otp}"
+        entry_line = f"{number}|{clean_otp}|{current_time}"
 
         with _lock:
             if nid and nid in _seen_nids:
                 continue
-            if entry in _seen_pairs:
+            if entry_key in _seen_pairs:
                 continue
 
             target_file = None
@@ -312,16 +328,16 @@ def save_otp_pairs(record: dict) -> None:
             if target_file:
                 try:
                     with open(target_file, "a", encoding="utf-8") as f:
-                        f.write(entry + "\n")
+                        f.write(entry_line + "\n")
                         f.flush()
                 except Exception as fe:
                     log(f"[SAVE ERR] Write to {target_file.name}: {fe}")
                     continue
 
                 _total_saved += 1
-                log(f"[{platform.upper()}] {entry}")
+                log(f"[{platform.upper()}] {entry_key}")
 
-            _seen_pairs.add(entry)
+            _seen_pairs.add(entry_key)
             if nid:
                 _seen_nids.add(nid)
 
