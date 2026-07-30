@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+fb_otp.txt
+insta_otp.txt
+others_otp.txt
+zenex_master.log
+num_otp.txt
+otp_responses.jsonl
+STOP_MASTER.txt
