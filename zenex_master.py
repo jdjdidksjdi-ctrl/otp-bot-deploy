@@ -113,8 +113,13 @@ def get_otps():
     fb_data.reverse()
     insta_data.reverse()
 
-    with _lock:
-        total = _total_saved
+    total = 0
+    if FB_OTP_FILE.exists():
+        with open(FB_OTP_FILE, "r", encoding="utf-8") as f:
+            total += sum(1 for _ in f)
+    if INSTA_OTP_FILE.exists():
+        with open(INSTA_OTP_FILE, "r", encoding="utf-8") as f:
+            total += sum(1 for _ in f)
 
     data = {}
     if platform == "fb":
