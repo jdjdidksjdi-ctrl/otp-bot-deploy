@@ -57,12 +57,6 @@ _seen_nids   = set()
 _seen_pairs  = set()
 _total_saved = 0
 
-# In-memory storage for the Web API
-_latest_otps = {
-    "fb": [],
-    "insta": []
-}
-
 # ══════════════════════════════════════════════════════════════
 #  FLASK APP SETUP
 # ══════════════════════════════════════════════════════════════
@@ -91,23 +85,39 @@ def get_otps():
     limit = request.args.get("limit", default=50, type=int)
     platform = request.args.get("platform", default="all")
     
+    fb_data = []
+    if platform in ("all", "fb") and FB_OTP_FILE.exists():
+        lines = FB_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+        for ln in lines[-limit:]:
+            if "|" in ln:
+                num, code = ln.split("|", 1)
+                fb_data.append({"number": num, "otp": code})
+                
+    insta_data = []
+    if platform in ("all", "insta") and INSTA_OTP_FILE.exists():
+        lines = INSTA_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+        for ln in lines[-limit:]:
+            if "|" in ln:
+                num, code = ln.split("|", 1)
+                insta_data.append({"number": num, "otp": code})
+
     with _lock:
-        if platform == "fb":
-            data = {"fb": _latest_otps["fb"][-limit:]}
-        elif platform == "insta":
-            data = {"insta": _latest_otps["insta"][-limit:]}
-        else:
-            data = {
-                "fb": _latest_otps["fb"][-limit:],
-                "insta": _latest_otps["insta"][-limit:]
-            }
+        total = _total_saved
+
+    data = {}
+    if platform == "fb":
+        data = {"fb": fb_data}
+    elif platform == "insta":
+        data = {"insta": insta_data}
+    else:
+        data = {"fb": fb_data, "insta": insta_data}
         
-        return jsonify({
-            "success": True,
-            "total_saved": _total_saved,
-            "data": data,
-            "timestamp": datetime.now().isoformat()
-        })
+    return jsonify({
+        "success": True,
+        "total_saved": total,
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 
 # ══════════════════════════════════════════════════════════════
@@ -185,17 +195,14 @@ def load_existing() -> None:
     ensure_files()
     total = 0
     for src_file in [FB_OTP_FILE, INSTA_OTP_FILE]:
-        platform = "fb" if src_file == FB_OTP_FILE else "insta"
         if src_file.exists():
             for ln in src_file.read_text(encoding="utf-8", errors="replace").splitlines():
                 ln = ln.strip()
                 if ln and "|" in ln:
                     _seen_pairs.add(ln)
-                    num, code = ln.split("|", 1)
-                    _latest_otps[platform].append({"number": num, "otp": code})
                     total += 1
     _total_saved = total
-    log(f"[INIT] Loaded {total} pairs from existing files to memory")
+    log(f"[INIT] Loaded {total} pairs from existing files")
 
 # ══════════════════════════════════════════════════════════════
 #  AUTH
@@ -299,10 +306,8 @@ def save_otp_pairs(record: dict) -> None:
             target_file = None
             if platform == "fb":
                 target_file = FB_OTP_FILE
-                _latest_otps["fb"].append({"number": number, "otp": clean_otp})
             elif platform == "insta":
                 target_file = INSTA_OTP_FILE
-                _latest_otps["insta"].append({"number": number, "otp": clean_otp})
 
             if target_file:
                 try:
