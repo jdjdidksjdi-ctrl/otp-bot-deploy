@@ -57,6 +57,30 @@ _seen_nids   = set()
 _seen_pairs  = set()
 _total_saved = 0
 
+def get_time_ago(time_str):
+    if time_str == "Unknown":
+        return "Unknown"
+    try:
+        past = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        diff = datetime.now() - past
+        seconds = diff.total_seconds()
+        
+        if seconds < 10:
+            return "just now"
+        elif seconds < 60:
+            return f"{int(seconds)} sec ago"
+        elif seconds < 3600:
+            return f"{int(seconds // 60)} min ago"
+        elif seconds < 86400:
+            return f"{int(seconds // 3600)} h ago"
+        elif seconds < 2592000:
+            return f"{int(seconds // 86400)} day ago"
+        else:
+            return f"{int(seconds // 2592000)} m ago"
+    except Exception:
+        return "Unknown"
+
+
 # ══════════════════════════════════════════════════════════════
 #  FLASK APP SETUP
 # ══════════════════════════════════════════════════════════════
@@ -104,9 +128,10 @@ def get_otps():
                     valid_fb.append(parts)
         for parts in valid_fb[-limit:]:
             if len(parts) >= 3:
-                fb_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
+                time_ago = get_time_ago(parts[2])
+                fb_data.append({"number": parts[0], "otp": parts[1], "time": parts[2], "time_ago": time_ago})
             else:
-                fb_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
+                fb_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown", "time_ago": "Unknown"})
                 
     insta_data = []
     if platform in ("all", "insta") and INSTA_OTP_FILE.exists():
@@ -119,9 +144,10 @@ def get_otps():
                     valid_insta.append(parts)
         for parts in valid_insta[-limit:]:
             if len(parts) >= 3:
-                insta_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
+                time_ago = get_time_ago(parts[2])
+                insta_data.append({"number": parts[0], "otp": parts[1], "time": parts[2], "time_ago": time_ago})
             else:
-                insta_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
+                insta_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown", "time_ago": "Unknown"})
 
     fb_data.reverse()
     insta_data.reverse()
