@@ -90,24 +90,37 @@ def get_otps():
 
     platform = request.args.get("platform", default="all").lower()
     
+    digits_str = request.args.get("digits")
+    digits_filter = int(digits_str) if digits_str and digits_str.isdigit() else None
+    
     fb_data = []
     if platform in ("all", "fb") and FB_OTP_FILE.exists():
         lines = FB_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
-        for ln in lines[-limit:]:
+        valid_fb = []
+        for ln in lines:
             parts = ln.split("|")
+            if len(parts) >= 2:
+                if digits_filter is None or len(parts[1]) == digits_filter:
+                    valid_fb.append(parts)
+        for parts in valid_fb[-limit:]:
             if len(parts) >= 3:
                 fb_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
-            elif len(parts) == 2:
+            else:
                 fb_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
                 
     insta_data = []
     if platform in ("all", "insta") and INSTA_OTP_FILE.exists():
         lines = INSTA_OTP_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
-        for ln in lines[-limit:]:
+        valid_insta = []
+        for ln in lines:
             parts = ln.split("|")
+            if len(parts) >= 2:
+                if digits_filter is None or len(parts[1]) == digits_filter:
+                    valid_insta.append(parts)
+        for parts in valid_insta[-limit:]:
             if len(parts) >= 3:
                 insta_data.append({"number": parts[0], "otp": parts[1], "time": parts[2]})
-            elif len(parts) == 2:
+            else:
                 insta_data.append({"number": parts[0], "otp": parts[1], "time": "Unknown"})
 
     fb_data.reverse()
